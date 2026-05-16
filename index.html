@@ -20,12 +20,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
   const firebaseConfig = {
-    apiKey: "AIzaSyDhmuQI9YRVLbzGseG6w2iT5Yl0lkp2PsY",
-    authDomain: "travalmate-89897.firebaseapp.com",
-    projectId: "travalmate-89897",
-    storageBucket: "travalmate-89897.firebasestorage.app",
-    messagingSenderId: "67028161166",
-    appId: "1:67028161166:web:8194c0b076c7948d656fdf"
+    apiKey: "",
+    authDomain: "",
+    projectId: "",
+    storageBucket: "",
+    messagingSenderId: "",
+    appId: ""
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
@@ -140,9 +140,9 @@ body{
 ═══════════════════════════════════════ */
 .main-wrap{
   max-width:1100px;margin:0 auto;
-  padding:28px 20px calc(100px + var(--safe-bottom));
+  padding:28px 20px calc(115px + var(--safe-bottom));
 }
-@media(max-width:600px){.main-wrap{padding:18px 15px calc(88px + var(--safe-bottom));}}
+@media(max-width:600px){.main-wrap{padding:18px 15px calc(105px + var(--safe-bottom));}}
 
 /* ═══════════════════════════════════════
    BOTTOM NAV (mobile only)
@@ -152,7 +152,7 @@ body{
   position:fixed;bottom:0;left:0;right:0;z-index:200;
   background:rgba(255,255,255,0.97);
   border-top:1.5px solid var(--border);
-  padding:10px 0 calc(10px + var(--safe-bottom));
+  padding:10px 0 calc(22px + var(--safe-bottom));
   justify-content:space-around;align-items:center;
   backdrop-filter:blur(12px);
 }
@@ -2117,7 +2117,7 @@ window.addEventListener('appinstalled',()=>{
 // ═══════════════════════════════════════════
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/travelmate/sw.js', {scope: '/travelmate/'})
+    navigator.serviceWorker.register('/travelmate/sw.js', {scope: '/TravelMate/'})
       .then(reg=>console.log('SW registered, scope:',reg.scope))
       .catch(e=>console.log('SW error:',e));
   });
