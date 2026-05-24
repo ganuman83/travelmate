@@ -953,8 +953,34 @@ table.dtbl tr:hover td{background:var(--blue-light);}
   </div>
 </div>
 
-<!-- Add Note -->
-<div class="overlay" id="modal-add-note">
+<!-- Update Available Banner -->
+<div id="update-banner" style="
+  display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  z-index:9999;background:linear-gradient(135deg,#1e40af,#2563eb);
+  color:#fff;border-radius:16px;padding:14px 20px;
+  box-shadow:0 8px 32px rgba(37,99,235,0.45);
+  display:none;align-items:center;gap:12px;max-width:340px;width:90%;
+  animation:slideUp 0.35s cubic-bezier(.34,1.56,.64,1) both;
+  border:1.5px solid rgba(255,255,255,0.2);">
+  <span style="font-size:1.4rem;">🚀</span>
+  <div style="flex:1;">
+    <div style="font-size:0.82rem;font-weight:900;letter-spacing:0.3px;">Update Available!</div>
+    <div id="update-banner-sub" style="font-size:0.7rem;opacity:0.8;font-weight:600;margin-top:1px;"></div>
+  </div>
+  <button onclick="applyUpdate()" style="
+    background:#fff;color:#1e40af;border:none;border-radius:10px;
+    padding:8px 14px;font-size:0.78rem;font-weight:900;cursor:pointer;
+    font-family:var(--font);white-space:nowrap;flex-shrink:0;">
+    Reload ↺
+  </button>
+  <button onclick="dismissUpdate()" style="
+    background:transparent;color:rgba(255,255,255,0.7);border:none;
+    font-size:1.1rem;cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0;">×</button>
+</div>
+
+<style>
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+</style>
   <div class="modal">
     <button class="modal-x" onclick="closeModal('modal-add-note')">×</button>
     <h3>📝 Note for Organiser</h3>
@@ -2384,17 +2410,63 @@ window.addEventListener('appinstalled',()=>{
 });
 
 // ═══════════════════════════════════════════
-//  SERVICE WORKER
+//  SERVICE WORKER + AUTO-UPDATE
 // ═══════════════════════════════════════════
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    // Derive SW path dynamically so it works on GitHub Pages (/travelmate/)
-    // and any custom domain (/)
-    const swPath = (location.pathname.replace(/\/[^/]*$/, '') || '') + '/sw.js';
-    navigator.serviceWorker.register(swPath)
-      .then(reg=>console.log('SW registered, scope:',reg.scope))
-      .catch(e=>console.log('SW error:',e));
+  window.addEventListener('load', async () => {
+    try {
+      // Derive SW path dynamically — works on GitHub Pages (/travelmate/) and custom domain (/)
+      const swPath = (location.pathname.replace(/\/[^/]*$/, '') || '') + '/sw.js';
+      const reg = await navigator.serviceWorker.register(swPath);
+      console.log('SW registered, scope:', reg.scope);
+
+      // Listen for UPDATE_AVAILABLE message from SW
+      navigator.serviceWorker.addEventListener('message', e => {
+        if (e.data && e.data.type === 'UPDATE_AVAILABLE') {
+          showUpdateBanner(e.data.version, e.data.buildTime);
+        }
+      });
+
+      // Also check immediately: if a waiting SW already exists (e.g. user reopened tab)
+      if (reg.waiting) {
+        showUpdateBanner();
+      }
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner();
+          }
+        });
+      });
+    } catch(e) {
+      console.log('SW error:', e);
+    }
   });
+}
+
+function showUpdateBanner(version, buildTime) {
+  const banner = document.getElementById('update-banner');
+  const sub    = document.getElementById('update-banner-sub');
+  if (!banner) return;
+  if (sub) {
+    if (version) {
+      const t = buildTime ? new Date(buildTime).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}) : '';
+      sub.textContent = `v${version}${t ? ' · ' + t : ''}`;
+    } else {
+      sub.textContent = 'A new version is ready.';
+    }
+  }
+  banner.style.display = 'flex';
+}
+
+function applyUpdate() {
+  document.getElementById('update-banner').style.display = 'none';
+  window.location.reload();
+}
+
+function dismissUpdate() {
+  document.getElementById('update-banner').style.display = 'none';
 }
 
 // ═══════════════════════════════════════════
