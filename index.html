@@ -898,6 +898,7 @@ table.dtbl tr:hover td{background:var(--blue-light);}
         <option value="entry">🎢 Entry Tickets</option>
         <option value="shopping">🛍 Shopping</option>
         <option value="misc">📦 Misc</option>
+        <option value="fasttag">🛣 Fasttag</option>
       </select></div>
     <div class="form-row"><label>Description</label>
       <input type="text" id="ae-note" placeholder="e.g. Hotel stay 2 nights..."></div>
@@ -914,6 +915,41 @@ table.dtbl tr:hover td{background:var(--blue-light);}
       <div id="split-hint" style="display:none;font-size:0.75rem;font-weight:700;color:var(--orange);margin-top:8px;padding:8px 10px;background:rgba(249,115,22,0.08);border-radius:8px;border:1px solid rgba(249,115,22,0.2);font-family:var(--font);"></div>
     </div>
     <button class="btn btn-orange btn-full" onclick="saveExpense()">Add Expense 💳</button>
+  </div>
+</div>
+
+<!-- Edit Expense -->
+<div class="overlay" id="modal-edit-expense">
+  <div class="modal">
+    <button class="modal-x" onclick="closeModal('modal-edit-expense')">×</button>
+    <h3>✏️ Edit Expense</h3>
+    <input type="hidden" id="ee-id">
+    <div class="form-row"><label>Category *</label>
+      <select id="ee-cat">
+        <option value="">-- Select --</option>
+        <option value="hotel">🏨 Hotel / Stay</option>
+        <option value="fuel">⛽ Fuel</option>
+        <option value="food">🍽 Food & Drinks</option>
+        <option value="transport">🚌 Transport</option>
+        <option value="entry">🎢 Entry Tickets</option>
+        <option value="shopping">🛍 Shopping</option>
+        <option value="misc">📦 Misc</option>
+        <option value="fasttag">🛣 Fasttag</option>
+      </select></div>
+    <div class="form-row"><label>Description</label>
+      <input type="text" id="ee-note" placeholder="e.g. Hotel stay 2 nights..."></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Amount (₹) *</label>
+        <input type="number" id="ee-amount" min="0" placeholder="0" inputmode="decimal"></div>
+      <div class="form-row"><label>Date</label><input type="date" id="ee-date"></div>
+    </div>
+    <div class="form-row"><label>Paid By</label>
+      <select id="ee-paidby"><option value="">-- Select --</option></select></div>
+    <div class="form-row">
+      <label>Split Among</label>
+      <div id="ee-split-checks" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:6px;"></div>
+    </div>
+    <button class="btn btn-blue btn-full" onclick="updateExpense()">Save Changes ✓</button>
   </div>
 </div>
 
@@ -1068,9 +1104,9 @@ function togglePwVis(id,btn){
   el.type=el.type==='password'?'text':'password';
   btn.textContent=el.type==='password'?'👁':'🙈';
 }
-function catIcon(c){return{hotel:'🏨',fuel:'⛽',food:'🍽',transport:'🚌',entry:'🎢',shopping:'🛍',misc:'📦'}[c]||'💰';}
-function catLabel(c){return{hotel:'Hotel/Stay',fuel:'Fuel',food:'Food & Drinks',transport:'Transport',entry:'Entry/Tickets',shopping:'Shopping',misc:'Misc'}[c]||c;}
-function catBg(c){return{hotel:'#ede9fe',fuel:'#dcfce7',food:'#fff7ed',transport:'#dbeafe',entry:'#fce7f3',shopping:'#fef9c3',misc:'#f1f5f9'}[c]||'#f1f5f9';}
+function catIcon(c){return{hotel:'🏨',fuel:'⛽',food:'🍽',transport:'🚌',entry:'🎢',shopping:'🛍',misc:'📦',fasttag:'🛣'}[c]||'💰';}
+function catLabel(c){return{hotel:'Hotel/Stay',fuel:'Fuel',food:'Food & Drinks',transport:'Transport',entry:'Entry/Tickets',shopping:'Shopping',misc:'Misc',fasttag:'Fasttag'}[c]||c;}
+function catBg(c){return{hotel:'#ede9fe',fuel:'#dcfce7',food:'#fff7ed',transport:'#dbeafe',entry:'#fce7f3',shopping:'#fef9c3',misc:'#f1f5f9',fasttag:'#e0f2fe'}[c]||'#f1f5f9';}
 function orgFullName(){return currentUser?`${currentUser.firstName} ${currentUser.lastName||''}`.trim():'';}
 
 
@@ -1462,6 +1498,10 @@ async function renderOrgDetail(){
       </div>
     </div>
     <div class="card">
+      <div class="card-title">📊 Expense Summary</div>
+      <div id="exp-summary-wrap"></div>
+    </div>
+    <div class="card">
       <div class="card-title">📝 Notes from Travellers</div>
       <div id="notes-list"></div>
     </div>
@@ -1469,7 +1509,8 @@ async function renderOrgDetail(){
   renderMemberTable(trip,perHead,d);
   const orgTraveller=(trip.travellers||[]).find(m=>m.userId===trip.organiserId);
   const orgNameForList=orgTraveller?orgTraveller.name:orgFullName();
-  renderExpList(exps,'exp-list',true,orgNameForList);
+  renderExpList(exps,'exp-list',true,orgNameForList,true);
+  renderExpSummary(exps,trip);
   renderNotesList(notes,'notes-list');
 }
 
@@ -1589,10 +1630,30 @@ async function updateAdvance(idx,val){
   const d=await getAllData();
   renderMemberTable(trip,0,d);
 }
-function renderExpList(exps,cid,canDelete,orgName){
+function renderExpList(exps,cid,canDelete,orgName,canEdit){
   const el=document.getElementById(cid);if(!el)return;
-  if(!exps.length){el.innerHTML=`<div class="empty-state" style="padding:20px 0;"><span class="ei" style="font-size:2rem;">🧾</span><p>No expenses yet.</p></div>`;return;}
-  el.innerHTML=exps.slice().reverse().map(e=>{
+
+  // ── Filter dropdown ──
+  const allCats=[...new Set(exps.map(e=>e.cat))].filter(Boolean);
+  const currentFilter=el.dataset.filter||'all';
+  const filteredExps=currentFilter==='all'?exps:exps.filter(e=>e.cat===currentFilter);
+
+  const filterHtml=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <label style="font-size:0.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;">Filter:</label>
+      <select onchange="filterExpenses(this,'${cid}')" style="border:1.5px solid var(--border);border-radius:10px;padding:7px 14px;font-family:var(--font);font-size:0.82rem;font-weight:700;background:var(--light);color:var(--text);outline:none;cursor:pointer;">
+        <option value="all" ${currentFilter==='all'?'selected':''}>All</option>
+        ${allCats.map(c=>`<option value="${c}" ${currentFilter===c?'selected':''}>${catIcon(c)} ${catLabel(c)}</option>`).join('')}
+      </select>
+      <span style="font-size:0.75rem;color:var(--muted);font-weight:700;">${filteredExps.length} item${filteredExps.length!==1?'s':''}</span>
+    </div>`;
+
+  if(!exps.length){
+    el.innerHTML=`<div class="empty-state" style="padding:20px 0;"><span class="ei" style="font-size:2rem;">🧾</span><p>No expenses yet.</p></div>`;
+    return;
+  }
+
+  const listHtml=filteredExps.slice().reverse().map(e=>{
     const isRecordOnly=orgName&&e.paidBy&&e.paidBy!==orgName;
     return `
     <div class="exp-item" style="flex-wrap:wrap;${isRecordOnly?'opacity:0.85;border-left:3px solid var(--orange);':''}">
@@ -1609,9 +1670,23 @@ function renderExpList(exps,cid,canDelete,orgName){
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
         ${e.date?`<div style="font-size:0.7rem;color:var(--muted);font-weight:600;white-space:nowrap;">${fmtShort(e.date)}</div>`:''}
         <div class="exp-amt">₹${(+e.amount).toLocaleString('en-IN')}</div>
-        ${canDelete?`<button class="btn btn-ghost btn-xs" style="color:var(--red);border-color:var(--red);" onclick="deleteExpense('${e.id}')">✕ Remove</button>`:''}
+        <div style="display:flex;gap:5px;">
+          ${canEdit?`<button class="btn btn-ghost btn-xs" style="color:var(--blue);border-color:var(--blue);" onclick="openEditExpModal('${e.id}')">✏️ Edit</button>`:''}
+          ${canDelete?`<button class="btn btn-ghost btn-xs" style="color:var(--red);border-color:var(--red);" onclick="deleteExpense('${e.id}')">✕ Remove</button>`:''}
+        </div>
       </div>
-    </div>`}).join('');
+    </div>`;
+  }).join('');
+
+  el.innerHTML=filterHtml+(filteredExps.length?listHtml:`<div style="text-align:center;padding:24px 0;color:var(--muted);font-weight:700;font-size:0.88rem;">No expenses in this category.</div>`);
+}
+
+function filterExpenses(selectEl,cid){
+  const el=document.getElementById(cid);
+  if(el)el.dataset.filter=selectEl.value;
+  // Re-render full detail to refresh filter
+  if(currentUser&&currentUser.role==='organiser')renderOrgDetail();
+  else if(currentUser&&currentUser.role==='traveller')renderTrvDetail();
 }
 function renderNotesList(notes,cid){
   const el=document.getElementById(cid);if(!el)return;
@@ -1785,6 +1860,115 @@ async function deleteExpense(eid){
   toast('Expense removed.','#dc2626');renderOrgDetail();
 }
 
+// ── Expense Summary Table ──
+function renderExpSummary(exps,trip){
+  const wrap=document.getElementById('exp-summary-wrap');if(!wrap)return;
+  if(!exps.length){wrap.innerHTML=`<div style="color:var(--muted);font-size:0.85rem;font-weight:600;text-align:center;padding:16px;">No expenses to summarize.</div>`;return;}
+
+  // Build unique categories (columns) and dates (rows)
+  const cats=[...new Set(exps.map(e=>e.cat).filter(Boolean))];
+  const dates=[...new Set(exps.map(e=>e.date).filter(Boolean))].sort();
+
+  // Build data grid: date → cat → total amount
+  const grid={};
+  const catTotals={};
+  const dateTotals={};
+  exps.forEach(e=>{
+    const d=e.date||'Unknown';const c=e.cat||'misc';const a=+e.amount||0;
+    if(!grid[d])grid[d]={};
+    grid[d][c]=(grid[d][c]||0)+a;
+    catTotals[c]=(catTotals[c]||0)+a;
+    dateTotals[d]=(dateTotals[d]||0)+a;
+  });
+  const allDates=[...new Set([...dates,...Object.keys(grid).filter(d=>d==='Unknown')])];
+
+  const headerCells=cats.map(c=>`<th style="white-space:nowrap;">${catIcon(c)} ${catLabel(c)}</th>`).join('');
+  const rows=allDates.map(d=>{
+    const cells=cats.map(c=>{
+      const v=grid[d]&&grid[d][c];
+      return `<td style="text-align:right;color:${v?'var(--text)':'var(--muted)'};font-weight:${v?'800':'400'};">${v?'₹'+v.toLocaleString('en-IN'):'—'}</td>`;
+    }).join('');
+    return `<tr>
+      <td style="white-space:nowrap;font-weight:700;color:var(--blue2);">${d==='Unknown'?'No Date':fmtShort(d)}</td>
+      ${cells}
+      <td style="text-align:right;font-weight:900;color:var(--orange);">₹${(dateTotals[d]||0).toLocaleString('en-IN')}</td>
+    </tr>`;
+  }).join('');
+  const totalRow=`<tr style="background:var(--light);">
+    <td style="font-weight:900;color:var(--text);">Total</td>
+    ${cats.map(c=>`<td style="text-align:right;font-weight:900;color:var(--blue2);">₹${(catTotals[c]||0).toLocaleString('en-IN')}</td>`).join('')}
+    <td style="text-align:right;font-weight:900;color:var(--orange);">₹${exps.reduce((s,e)=>s+(+e.amount||0),0).toLocaleString('en-IN')}</td>
+  </tr>`;
+
+  wrap.innerHTML=`<div class="tbl-wrap"><table class="dtbl" style="min-width:300px;">
+    <thead><tr>
+      <th>Day / Date</th>${headerCells}<th style="text-align:right;">Total</th>
+    </tr></thead>
+    <tbody>${rows}${totalRow}</tbody>
+  </table></div>`;
+}
+
+// ── Edit Expense ──
+async function openEditExpModal(eid){
+  const snap=await db.collection('expenses').doc(eid).get();
+  if(!snap.exists){toast('Expense not found.','#dc2626');return;}
+  const e={id:snap.id,...snap.data()};
+  const tripSnap=await db.collection('trips').doc(activeTripId).get();
+  const trip=tripSnap.data();if(!trip)return;
+  const travellers=trip.travellers||[];
+
+  document.getElementById('ee-id').value=e.id;
+  document.getElementById('ee-cat').value=e.cat||'';
+  document.getElementById('ee-note').value=e.note||'';
+  document.getElementById('ee-amount').value=e.amount||'';
+  document.getElementById('ee-date').value=e.date||'';
+
+  const pb=document.getElementById('ee-paidby');
+  pb.innerHTML=travellers.map(m=>`<option value="${m.name}" ${m.name===e.paidBy?'selected':''}>${m.name}${m.userId===currentUser.id?' (You)':''}</option>`).join('');
+
+  document.getElementById('ee-split-checks').innerHTML=travellers.map(m=>{
+    const sel=!e.splitAmong||!e.splitAmong.length||e.splitAmong.includes(m.name);
+    return `<div id="ee-split-${m.userId}" onclick="toggleSplitEE(this,'${m.name}')"
+      style="display:flex;align-items:center;gap:8px;
+        background:${sel?'var(--blue-light)':'var(--light)'};border:2px solid ${sel?'var(--blue)':'var(--border)'};
+        border-radius:8px;padding:8px 12px;cursor:pointer;
+        font-size:0.85rem;font-weight:700;font-family:var(--font);user-select:none;transition:all 0.15s;"
+      data-selected="${sel}" data-name="${m.name}">
+      <span style="font-size:1rem;">${sel?'✅':'⭕'}</span>
+      <span>${m.name}${m.userId===currentUser.id?' 👑':''}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-edit-expense').classList.add('open');
+}
+function toggleSplitEE(el,name){
+  const selected=el.dataset.selected==='true';
+  el.dataset.selected=selected?'false':'true';
+  el.style.background=selected?'var(--light)':'var(--blue-light)';
+  el.style.borderColor=selected?'var(--border)':'var(--blue)';
+  el.querySelector('span').textContent=selected?'⭕':'✅';
+}
+async function updateExpense(){
+  const eid=document.getElementById('ee-id').value;
+  const cat=document.getElementById('ee-cat').value;
+  const amount=document.getElementById('ee-amount').value;
+  if(!cat||!amount){toast('Category and amount required!','#dc2626');return;}
+  const checked=[...document.querySelectorAll('#ee-split-checks [data-selected="true"]')].map(el=>el.dataset.name);
+  if(!checked.length){toast('Select at least one person to split among.','#dc2626');return;}
+  await db.collection('expenses').doc(eid).update({
+    cat,
+    note:document.getElementById('ee-note').value,
+    amount:+amount,
+    date:document.getElementById('ee-date').value,
+    paidBy:document.getElementById('ee-paidby').value,
+    splitAmong:checked,
+    updatedAt:new Date().toISOString()
+  });
+  closeModal('modal-edit-expense');
+  toast('Expense updated ✓','#16a34a');
+  renderOrgDetail();
+}
+
 // ═══════════════════════════════════════════
 //  TRAVELLER
 // ═══════════════════════════════════════════
@@ -1873,7 +2057,7 @@ async function renderTrvDetail(){
   `;
   const trvOrgTraveller=travellers.find(m=>m.userId===trip.organiserId);
   const trvOrgName=trvOrgTraveller?trvOrgTraveller.name:'';
-  renderExpList(exps,'trv-exp-list',false,trvOrgName);
+  renderExpList(exps,'trv-exp-list',false,trvOrgName,false);
   const myNotes=d.notes.filter(n=>n.tripId===activeTripId&&n.byId===currentUser.id);
   renderNotesList(myNotes,'trv-notes-list');
 }
