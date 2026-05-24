@@ -1,4 +1,4 @@
-name: Update version.json
+name: update-version.json
 
 on:
   push:
