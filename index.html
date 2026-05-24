@@ -2311,7 +2311,10 @@ window.addEventListener('appinstalled',()=>{
 // ═══════════════════════════════════════════
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/travelmate/sw.js', {scope: '/TravelMate/'})
+    // Derive SW path dynamically so it works on GitHub Pages (/travelmate/)
+    // and any custom domain (/)
+    const swPath = (location.pathname.replace(/\/[^/]*$/, '') || '') + '/sw.js';
+    navigator.serviceWorker.register(swPath)
       .then(reg=>console.log('SW registered, scope:',reg.scope))
       .catch(e=>console.log('SW error:',e));
   });
