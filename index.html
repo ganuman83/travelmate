@@ -1072,7 +1072,8 @@ function showAlert(msg,title='Notice'){
 // ═══════════════════════════════════════════
 let currentUser=null,activeTripId=null,selectedTravellers=[],suPwOk=false,
     inviteOrgId=null,
-    editTravellersSelected=[];
+    editTravellersSelected=[],
+    expFilter='all'; // persists across re-renders
 
 // ═══════════════════════════════════════════
 //  UTILS
@@ -1440,6 +1441,7 @@ async function renderOrgTrips(){
 }
 async function openOrgTripDetail(tid){
   activeTripId=tid;
+  expFilter='all'; // reset filter for new trip
   document.getElementById('org-trips-view').style.display='none';
   document.getElementById('org-detail-view').style.display='block';
   renderOrgDetail();
@@ -1633,17 +1635,18 @@ async function updateAdvance(idx,val){
 function renderExpList(exps,cid,canDelete,orgName,canEdit){
   const el=document.getElementById(cid);if(!el)return;
 
-  // ── Filter dropdown ──
+  // ── Filter dropdown — uses module-level expFilter so it survives re-renders ──
   const allCats=[...new Set(exps.map(e=>e.cat))].filter(Boolean);
-  const currentFilter=el.dataset.filter||'all';
-  const filteredExps=currentFilter==='all'?exps:exps.filter(e=>e.cat===currentFilter);
+  // If current filter category no longer exists in expenses, reset to 'all'
+  if(expFilter!=='all'&&!allCats.includes(expFilter))expFilter='all';
+  const filteredExps=expFilter==='all'?exps:exps.filter(e=>e.cat===expFilter);
 
   const filterHtml=`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <label style="font-size:0.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;">Filter:</label>
       <select onchange="filterExpenses(this,'${cid}')" style="border:1.5px solid var(--border);border-radius:10px;padding:7px 14px;font-family:var(--font);font-size:0.82rem;font-weight:700;background:var(--light);color:var(--text);outline:none;cursor:pointer;">
-        <option value="all" ${currentFilter==='all'?'selected':''}>All</option>
-        ${allCats.map(c=>`<option value="${c}" ${currentFilter===c?'selected':''}>${catIcon(c)} ${catLabel(c)}</option>`).join('')}
+        <option value="all" ${expFilter==='all'?'selected':''}>All</option>
+        ${allCats.map(c=>`<option value="${c}" ${expFilter===c?'selected':''}>${catIcon(c)} ${catLabel(c)}</option>`).join('')}
       </select>
       <span style="font-size:0.75rem;color:var(--muted);font-weight:700;">${filteredExps.length} item${filteredExps.length!==1?'s':''}</span>
     </div>`;
@@ -1681,12 +1684,18 @@ function renderExpList(exps,cid,canDelete,orgName,canEdit){
   el.innerHTML=filterHtml+(filteredExps.length?listHtml:`<div style="text-align:center;padding:24px 0;color:var(--muted);font-weight:700;font-size:0.88rem;">No expenses in this category.</div>`);
 }
 
-function filterExpenses(selectEl,cid){
-  const el=document.getElementById(cid);
-  if(el)el.dataset.filter=selectEl.value;
-  // Re-render full detail to refresh filter
-  if(currentUser&&currentUser.role==='organiser')renderOrgDetail();
-  else if(currentUser&&currentUser.role==='traveller')renderTrvDetail();
+async function filterExpenses(selectEl,cid){
+  expFilter=selectEl.value;
+  // Re-fetch and re-render only the expenses list + summary, not the full detail page
+  const d=await getAllData();
+  const trip=d.trips.find(t=>t.id===activeTripId);if(!trip)return;
+  const exps=d.expenses.filter(e=>e.tripId===activeTripId);
+  const travellers=trip.travellers||[];
+  const orgTraveller=travellers.find(m=>m.userId===(currentUser?currentUser.id:''));
+  const orgName=orgTraveller?orgTraveller.name:orgFullName();
+  const isOrg=currentUser&&currentUser.role==='organiser';
+  renderExpList(exps,cid,isOrg,orgName,isOrg);
+  if(isOrg)renderExpSummary(exps,trip);
 }
 function renderNotesList(notes,cid){
   const el=document.getElementById(cid);if(!el)return;
@@ -2010,6 +2019,7 @@ async function renderTrvTrips(){
 }
 function openTrvDetail(tid){
   activeTripId=tid;
+  expFilter='all'; // reset filter for new trip
   document.getElementById('trv-trips-view').style.display='none';
   document.getElementById('trv-detail-view').style.display='block';
   renderTrvDetail();
