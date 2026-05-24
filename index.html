@@ -1073,7 +1073,8 @@ function showAlert(msg,title='Notice'){
 let currentUser=null,activeTripId=null,selectedTravellers=[],suPwOk=false,
     inviteOrgId=null,
     editTravellersSelected=[],
-    expFilter='all'; // persists across re-renders
+    expFilter='all', // persists across re-renders
+    dateFilter='all'; // date filter persists across re-renders
 
 // ═══════════════════════════════════════════
 //  UTILS
@@ -1442,6 +1443,7 @@ async function renderOrgTrips(){
 async function openOrgTripDetail(tid){
   activeTripId=tid;
   expFilter='all'; // reset filter for new trip
+  dateFilter='all';
   document.getElementById('org-trips-view').style.display='none';
   document.getElementById('org-detail-view').style.display='block';
   renderOrgDetail();
@@ -1635,20 +1637,52 @@ async function updateAdvance(idx,val){
 function renderExpList(exps,cid,canDelete,orgName,canEdit){
   const el=document.getElementById(cid);if(!el)return;
 
-  // ── Filter dropdown — uses module-level expFilter so it survives re-renders ──
+  // ── Available filter options from data ──
   const allCats=[...new Set(exps.map(e=>e.cat))].filter(Boolean);
-  // If current filter category no longer exists in expenses, reset to 'all'
+  const allDates=[...new Set(exps.map(e=>e.date).filter(Boolean))].sort();
+
+  // ── Validate stored filters still exist in data, else reset ──
   if(expFilter!=='all'&&!allCats.includes(expFilter))expFilter='all';
-  const filteredExps=expFilter==='all'?exps:exps.filter(e=>e.cat===expFilter);
+  if(dateFilter!=='all'&&!allDates.includes(dateFilter))dateFilter='all';
+
+  // ── Apply both filters ──
+  const filteredExps=exps.filter(e=>{
+    const catOk=expFilter==='all'||e.cat===expFilter;
+    const dateOk=dateFilter==='all'||e.date===dateFilter;
+    return catOk&&dateOk;
+  });
+
+  // ── Filtered total ──
+  const filteredTotal=filteredExps.reduce((s,e)=>s+(+e.amount||0),0);
 
   const filterHtml=`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-      <label style="font-size:0.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;">Filter:</label>
-      <select onchange="filterExpenses(this,'${cid}')" style="border:1.5px solid var(--border);border-radius:10px;padding:7px 14px;font-family:var(--font);font-size:0.82rem;font-weight:700;background:var(--light);color:var(--text);outline:none;cursor:pointer;">
-        <option value="all" ${expFilter==='all'?'selected':''}>All</option>
-        ${allCats.map(c=>`<option value="${c}" ${expFilter===c?'selected':''}>${catIcon(c)} ${catLabel(c)}</option>`).join('')}
-      </select>
-      <span style="font-size:0.75rem;color:var(--muted);font-weight:700;">${filteredExps.length} item${filteredExps.length!==1?'s':''}</span>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding:12px 14px;background:var(--light);border-radius:14px;border:1.5px solid var(--border);">
+      <span style="font-size:0.68rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;flex-basis:100%;margin-bottom:2px;">🔍 Filter Expenses</span>
+
+      <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:130px;">
+        <span style="font-size:0.75rem;font-weight:800;color:var(--muted);">Type</span>
+        <select onchange="filterExpenses(this,'${cid}','cat')"
+          style="flex:1;border:1.5px solid var(--border);border-radius:10px;padding:7px 10px;font-family:var(--font);font-size:0.82rem;font-weight:700;background:#fff;color:var(--text);outline:none;cursor:pointer;${expFilter!=='all'?'border-color:var(--blue);background:var(--blue-light);color:var(--blue);':''}">
+          <option value="all" ${expFilter==='all'?'selected':''}>All Types</option>
+          ${allCats.map(c=>`<option value="${c}" ${expFilter===c?'selected':''}>${catIcon(c)} ${catLabel(c)}</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:130px;">
+        <span style="font-size:0.75rem;font-weight:800;color:var(--muted);">Date</span>
+        <select onchange="filterExpenses(this,'${cid}','date')"
+          style="flex:1;border:1.5px solid var(--border);border-radius:10px;padding:7px 10px;font-family:var(--font);font-size:0.82rem;font-weight:700;background:#fff;color:var(--text);outline:none;cursor:pointer;${dateFilter!=='all'?'border-color:var(--orange);background:#fff7ed;color:var(--orange);':''}">
+          <option value="all" ${dateFilter==='all'?'selected':''}>All Dates</option>
+          ${allDates.map(d=>`<option value="${d}" ${dateFilter===d?'selected':''}>📅 ${fmtShort(d)}</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:0.75rem;color:var(--muted);font-weight:700;">${filteredExps.length} item${filteredExps.length!==1?'s':''}</span>
+        ${filteredExps.length?`<span style="font-size:0.75rem;font-weight:900;color:var(--blue2);">₹${filteredTotal.toLocaleString('en-IN')}</span>`:''}
+        ${(expFilter!=='all'||dateFilter!=='all')?`<button onclick="clearExpFilters('${cid}')"
+          style="font-size:0.7rem;font-weight:800;color:var(--red);background:rgba(220,38,38,0.08);border:1.5px solid rgba(220,38,38,0.25);border-radius:8px;padding:4px 10px;cursor:pointer;font-family:var(--font);">✕ Clear</button>`:''}
+      </div>
     </div>`;
 
   if(!exps.length){
@@ -1656,37 +1690,68 @@ function renderExpList(exps,cid,canDelete,orgName,canEdit){
     return;
   }
 
-  const listHtml=filteredExps.slice().reverse().map(e=>{
-    const isRecordOnly=orgName&&e.paidBy&&e.paidBy!==orgName;
+  // ── Sort oldest → newest (no-date entries go last) ──
+  const sorted=filteredExps.slice().sort((a,b)=>{
+    if(!a.date&&!b.date)return 0;
+    if(!a.date)return 1;
+    if(!b.date)return -1;
+    return a.date<b.date?-1:a.date>b.date?1:0;
+  });
+
+  // ── Group by date ──
+  const groups=[];
+  sorted.forEach(e=>{
+    const key=e.date||'__nodate__';
+    let g=groups.find(x=>x.key===key);
+    if(!g){g={key,label:e.date?fmtShort(e.date):'No Date',items:[]};groups.push(g);}
+    g.items.push(e);
+  });
+
+  const listHtml=groups.map(g=>{
+    const groupTotal=g.items.reduce((s,e)=>s+(+e.amount||0),0);
+    const itemsHtml=g.items.map(e=>{
+      const isRecordOnly=orgName&&e.paidBy&&e.paidBy!==orgName;
+      return `
+      <div class="exp-item" style="flex-wrap:wrap;${isRecordOnly?'opacity:0.85;border-left:3px solid var(--orange);':''}">
+        <div class="exp-icon" style="background:${catBg(e.cat)}">${catIcon(e.cat)}</div>
+        <div class="exp-body" style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <div class="exp-cat">${catLabel(e.cat)}</div>
+            ${isRecordOnly?`<span style="font-size:0.65rem;font-weight:800;background:rgba(249,115,22,0.12);color:var(--orange);padding:2px 7px;border-radius:20px;border:1px solid rgba(249,115,22,0.3);">📋 Record Only</span>`:''}
+          </div>
+          <div class="exp-note">${e.note||'—'}</div>
+          ${e.paidBy?`<div class="exp-sub">💳 Paid by: <strong>${e.paidBy}</strong></div>`:''}
+          ${e.splitAmong&&e.splitAmong.length?`<div class="exp-sub">👥 Involves: ${e.splitAmong.join(', ')}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+          <div class="exp-amt">₹${(+e.amount).toLocaleString('en-IN')}</div>
+          <div style="display:flex;gap:5px;">
+            ${canEdit?`<button class="btn btn-ghost btn-xs" style="color:var(--blue);border-color:var(--blue);" onclick="openEditExpModal('${e.id}')">✏️ Edit</button>`:''}
+            ${canDelete?`<button class="btn btn-ghost btn-xs" style="color:var(--red);border-color:var(--red);" onclick="deleteExpense('${e.id}')">✕ Remove</button>`:''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
     return `
-    <div class="exp-item" style="flex-wrap:wrap;${isRecordOnly?'opacity:0.85;border-left:3px solid var(--orange);':''}">
-      <div class="exp-icon" style="background:${catBg(e.cat)}">${catIcon(e.cat)}</div>
-      <div class="exp-body" style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <div class="exp-cat">${catLabel(e.cat)}</div>
-          ${isRecordOnly?`<span style="font-size:0.65rem;font-weight:800;background:rgba(249,115,22,0.12);color:var(--orange);padding:2px 7px;border-radius:20px;border:1px solid rgba(249,115,22,0.3);">📋 Record Only</span>`:''}
-        </div>
-        <div class="exp-note">${e.note||'—'}</div>
-        ${e.paidBy?`<div class="exp-sub">💳 Paid by: <strong>${e.paidBy}</strong></div>`:''}
-        ${e.splitAmong&&e.splitAmong.length?`<div class="exp-sub">👥 Involves: ${e.splitAmong.join(', ')}</div>`:''}
+    <div style="margin-bottom:4px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;
+        padding:6px 12px;margin-bottom:6px;
+        background:linear-gradient(90deg,var(--blue-light),transparent);
+        border-left:3px solid var(--blue);border-radius:0 8px 8px 0;">
+        <span style="font-size:0.78rem;font-weight:900;color:var(--blue2);">📅 ${g.label}</span>
+        <span style="font-size:0.75rem;font-weight:800;color:var(--muted);">₹${groupTotal.toLocaleString('en-IN')}</span>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
-        ${e.date?`<div style="font-size:0.7rem;color:var(--muted);font-weight:600;white-space:nowrap;">${fmtShort(e.date)}</div>`:''}
-        <div class="exp-amt">₹${(+e.amount).toLocaleString('en-IN')}</div>
-        <div style="display:flex;gap:5px;">
-          ${canEdit?`<button class="btn btn-ghost btn-xs" style="color:var(--blue);border-color:var(--blue);" onclick="openEditExpModal('${e.id}')">✏️ Edit</button>`:''}
-          ${canDelete?`<button class="btn btn-ghost btn-xs" style="color:var(--red);border-color:var(--red);" onclick="deleteExpense('${e.id}')">✕ Remove</button>`:''}
-        </div>
-      </div>
+      ${itemsHtml}
     </div>`;
   }).join('');
 
-  el.innerHTML=filterHtml+(filteredExps.length?listHtml:`<div style="text-align:center;padding:24px 0;color:var(--muted);font-weight:700;font-size:0.88rem;">No expenses in this category.</div>`);
+  el.innerHTML=filterHtml+(filteredExps.length
+    ? listHtml
+    : `<div style="text-align:center;padding:24px 0;color:var(--muted);font-weight:700;font-size:0.88rem;">No expenses match the selected filters.</div>`);
 }
 
-async function filterExpenses(selectEl,cid){
-  expFilter=selectEl.value;
-  // Re-fetch and re-render only the expenses list + summary, not the full detail page
+async function _refreshExpView(cid){
   const d=await getAllData();
   const trip=d.trips.find(t=>t.id===activeTripId);if(!trip)return;
   const exps=d.expenses.filter(e=>e.tripId===activeTripId);
@@ -1696,6 +1761,17 @@ async function filterExpenses(selectEl,cid){
   const isOrg=currentUser&&currentUser.role==='organiser';
   renderExpList(exps,cid,isOrg,orgName,isOrg);
   if(isOrg)renderExpSummary(exps,trip);
+}
+
+async function filterExpenses(selectEl,cid,kind){
+  if(kind==='cat') expFilter=selectEl.value;
+  else dateFilter=selectEl.value;
+  await _refreshExpView(cid);
+}
+
+async function clearExpFilters(cid){
+  expFilter='all';dateFilter='all';
+  await _refreshExpView(cid);
 }
 function renderNotesList(notes,cid){
   const el=document.getElementById(cid);if(!el)return;
@@ -2020,6 +2096,7 @@ async function renderTrvTrips(){
 function openTrvDetail(tid){
   activeTripId=tid;
   expFilter='all'; // reset filter for new trip
+  dateFilter='all';
   document.getElementById('trv-trips-view').style.display='none';
   document.getElementById('trv-detail-view').style.display='block';
   renderTrvDetail();
