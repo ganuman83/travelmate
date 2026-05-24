@@ -1,5 +1,5 @@
-// travelmate Service Worker v1.5
-const CACHE_NAME = 'travelmate-v5';
+// travelmate Service Worker v1.6
+const CACHE_NAME = 'travelmate-v6';
 
 // Derive base path from SW location
 // On GitHub Pages: /travelmate/sw.js → base = /travelmate/
