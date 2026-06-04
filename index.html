@@ -257,22 +257,28 @@ body{
 /* ═══════════════════════════════════════
    TABLES
 ═══════════════════════════════════════ */
-.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-table.dtbl{width:100%;border-collapse:collapse;min-width:500px;}
-table.dtbl th{
-  text-align:left;font-size:0.68rem;font-weight:800;
-  color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;
-  padding:11px 15px;border-bottom:2px solid var(--border);
-  background:var(--light);font-family:var(--font);
+table.dtbl{
+  width:100%;
+  border-collapse:collapse;
+  table-layout: fixed;   
+  min-width:unset;       
 }
-table.dtbl td{
-  padding:14px 15px;border-bottom:1px solid var(--border);
-  font-size:0.87rem;font-weight:600;vertical-align:middle;
-  font-family:var(--font);
-}
-table.dtbl tr:last-child td{border-bottom:none;}
-table.dtbl tr:hover td{background:var(--blue-light);}
 
+table.dtbl th,
+table.dtbl td{
+  padding:12px 8px;     
+  white-space:nowrap;    
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+table.dtbl th{
+  font-size:0.82rem;
+}
+
+table.dtbl td{
+  font-size:0.82rem;
+}
 /* ═══════════════════════════════════════
    STAT BOXES
 ═══════════════════════════════════════ */
@@ -604,6 +610,10 @@ table.dtbl tr:hover td{background:var(--blue-light);}
 .user-card-mobile .ucm-name{font-size:0.9rem;font-weight:800;font-family:var(--font);}
 .user-card-mobile .ucm-uname{font-size:0.75rem;color:var(--muted);font-weight:600;font-family:var(--font);}
 .user-card-mobile .ucm-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+@media print{
+  .no-print{display:none!important;}
+}
 </style>
 </head>
 <body>
@@ -1523,8 +1533,8 @@ async function renderOrgDetail(){
       </div>
       <div id="exp-list" style="margin-top:14px;"></div>
       <div style="display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1.5px solid var(--border);">
-        <button class="btn btn-blue btn-full" onclick="generatePdf('${trip.id}')">📄 Download PDF</button>
-        <button class="btn btn-red" style="flex-shrink:0;padding:10px 16px;" onclick="orgDeleteTrip('${trip.id}')">🗑 Delete Trip</button>
+        <button class="btn btn-blue btn-full no-print" onclick="generatePdf('${trip.id}')">📄 Download PDF</button>
+        <button class="btn btn-red no-print" style="flex-shrink:0;padding:10px 16px;" onclick="orgDeleteTrip('${trip.id}')">🗑 Delete Trip</button>
       </div>
     </div>
     <div class="card">
@@ -2306,7 +2316,7 @@ async function generatePdf(tid){
 <body>
 
 <div class="print-bar no-print">
-  <p>📄 Ready to save as PDF — Click Print and choose "Save as PDF"</p>
+  <p>📄 Click "Print / Save PDF" → choose <strong>Save as PDF</strong> in your print dialog</p>
   <button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
 </div>
 
@@ -2369,14 +2379,12 @@ ${Object.keys(catTotals).length?`
 </body>
 </html>`;
 
-  // Open in new tab — user prints/saves as PDF with full font+emoji support
+  // Open in new tab — user can review and click Print / Save PDF
   const win=window.open('','_blank');
   if(!win){toast('Allow pop-ups to generate PDF!','#dc2626');return;}
   win.document.write(html);
   win.document.close();
-  // Auto-trigger print dialog after fonts load
-  win.onload=()=>{ setTimeout(()=>win.print(),800); };
-  toast('PDF report opened! Choose "Save as PDF" 📄','#16a34a');
+  toast('PDF report opened! 📄','#16a34a');
 }
 
 // ═══════════════════════════════════════════
