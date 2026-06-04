@@ -2235,7 +2235,12 @@ async function generatePdf(tid){
     </tr>`;
   }).join('');
 
-  const expenseRows=exps.slice().reverse().map((e,i)=>{
+  const expenseRows=exps.slice().sort((a,b)=>{
+    const dateA=a.date||'';const dateB=b.date||'';
+    if(dateA!==dateB)return dateA<dateB?-1:1;
+    const catA=(a.cat||'').toLowerCase();const catB=(b.cat||'').toLowerCase();
+    return catA<catB?-1:catA>catB?1:0;
+  }).map((e,i)=>{
     const bg=catBgMap[e.cat]||'#f1f5f9';
     const col=catColMap[e.cat]||'#475569';
     return `<tr>
